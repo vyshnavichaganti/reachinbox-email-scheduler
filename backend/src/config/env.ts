@@ -5,6 +5,8 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
+const redisUrlDefault = (process.env.REDIS_URL || process.env.REDISURL || process.env.REDIS_PRIVATE_URL || process.env.REDIS_PUBLIC_URL || '').trim();
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -13,11 +15,12 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
 
+  REDIS_URL: z.string().optional().default(redisUrlDefault),
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional().default(''),
 
-  ELASTICSEARCH_NODE: z.string().url().default('http://localhost:9200'),
+  ELASTICSEARCH_NODE: z.string().default('http://localhost:9200'),
 
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),

@@ -1,4 +1,5 @@
 import { Queue, type ConnectionOptions, type JobsOptions } from 'bullmq';
+import Redis from 'ioredis';
 import { env } from '../config/env';
 import { logger } from './logger';
 
@@ -14,11 +15,32 @@ export type EmailJobPayload = {
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
-export const bullmqConnection: ConnectionOptions = {
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD || undefined,
-};
+function getBullMqConnection(): ConnectionOptions {
+  const redisUrl = (env.REDIS_URL || '').trim();
+  if (redisUrl) {
+    try {
+      const tempClient = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: null });
+      const options: ConnectionOptions = {
+        ...tempClient.options,
+        maxRetriesPerRequest: null,
+      };
+      tempClient.disconnect();
+      return options;
+    } catch (error) {
+      logger.error('Failed to parse REDIS_URL with ioredis for BullMQ connection', { error });
+      throw error;
+    }
+  }
+
+  return {
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD || undefined,
+    maxRetriesPerRequest: null,
+  };
+}
+
+export const bullmqConnection: ConnectionOptions = getBullMqConnection();
 
 export type EmailJobResult = {
   bullJobId: string;

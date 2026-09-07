@@ -4,15 +4,28 @@ import { logger } from './logger';
 
 const globalForRedis = globalThis as unknown as { redis?: Redis };
 
-export const redis =
-  globalForRedis.redis ??
-  new Redis({
+const redisUrl = (env.REDIS_URL || '').trim();
+
+function createRedisClient(): Redis {
+  if (redisUrl) {
+    logger.info('Initializing Redis client with REDIS_URL');
+    return new Redis(redisUrl, {
+      maxRetriesPerRequest: null,
+      enableReadyCheck: true,
+    });
+  }
+
+  logger.info('Initializing Redis client with REDIS_HOST/PORT fallback');
+  return new Redis({
     host: env.REDIS_HOST,
     port: env.REDIS_PORT,
     password: env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
   });
+}
+
+export const redis = globalForRedis.redis ?? createRedisClient();
 
 if (env.NODE_ENV !== 'production') {
   globalForRedis.redis = redis;

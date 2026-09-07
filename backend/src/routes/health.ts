@@ -44,7 +44,7 @@ healthRouter.get('/', async (_req: Request, res: Response, next: NextFunction) =
       checks.elasticsearch = 'down';
     }
 
-    const healthy = Object.values(checks).every((status) => status === 'up');
+    const healthy = checks.api === 'up' && checks.postgres === 'up' && checks.redis === 'up';
 
     res.status(healthy ? 200 : 503).json({
       success: healthy,

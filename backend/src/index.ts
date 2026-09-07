@@ -12,8 +12,8 @@ async function bootstrap(): Promise<void> {
   await startEmailWorker();
 
   const app = createApp();
-  const server = app.listen(env.PORT, () => {
-    logger.info(`Server listening on ${env.BACKEND_URL} (port ${env.PORT})`);
+  const server = app.listen(env.PORT, '0.0.0.0', () => {
+    logger.info(`Server listening on ${env.BACKEND_URL} (port ${env.PORT}, host 0.0.0.0)`);
   });
 
   const shutdown = async (signal: string) => {
