@@ -12,6 +12,26 @@ export type JwtPayload = {
 
 export class AuthService {
   /**
+   * Returns the exact Google OAuth 2.0 redirect URI.
+   * Ensures absolute parity between authorization URL and token exchange.
+   */
+  getGoogleRedirectUri(): string {
+    const callbackUrl = env.GOOGLE_CALLBACK_URL?.trim();
+    if (callbackUrl) {
+      return callbackUrl;
+    }
+
+    const backendUrl = (env.BACKEND_URL?.trim() || 'http://localhost:4000').replace(/\/$/, '');
+    if (env.NODE_ENV === 'production' && (backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1'))) {
+      logger.warn(
+        'Production environment detected with localhost BACKEND_URL and missing GOOGLE_CALLBACK_URL. OAuth redirect URI may mismatch Google Cloud Console settings.',
+        { backendUrl }
+      );
+    }
+    return `${backendUrl}/api/auth/google/callback`;
+  }
+
+  /**
    * Generates Google OAuth 2.0 authorization URL.
    */
   getGoogleAuthUrl(): string {
@@ -26,8 +46,12 @@ export class AuthService {
       );
     }
 
-    const redirectUri =
-      env.GOOGLE_CALLBACK_URL || `${env.BACKEND_URL}/api/auth/google/callback`;
+    const redirectUri = this.getGoogleRedirectUri();
+
+    logger.info('Generating Google OAuth authorization URL', {
+      clientId: env.GOOGLE_CLIENT_ID,
+      redirectUri,
+    });
 
     const baseUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
     const params = new URLSearchParams({
@@ -49,6 +73,12 @@ export class AuthService {
       throw new AppError('Authorization code is required', 400);
     }
 
+    const redirectUri = this.getGoogleRedirectUri();
+    logger.info('Initiating Google OAuth token exchange', {
+      clientId: env.GOOGLE_CLIENT_ID,
+      redirectUri,
+    });
+
     let googleProfile: { id: string; email: string; name: string; picture?: string };
 
     try {
@@ -60,7 +90,7 @@ export class AuthService {
           code,
           client_id: env.GOOGLE_CLIENT_ID,
           client_secret: env.GOOGLE_CLIENT_SECRET,
-          redirect_uri: env.GOOGLE_CALLBACK_URL || `${env.BACKEND_URL}/api/auth/google/callback`,
+          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
         }),
       });
@@ -71,17 +101,28 @@ export class AuthService {
         try {
           parsedError = JSON.parse(errorText);
         } catch {
-          parsedError = { raw: errorText };
+          parsedError = {};
         }
 
-        logger.error('Google token exchange failed', {
+        const safeGoogleError = {
           status: tokenRes.status,
-          statusText: tokenRes.statusText,
-          error: parsedError.error || 'unknown_error',
-          error_description: parsedError.error_description || parsedError.raw || errorText,
-          details: parsedError,
+          error: typeof parsedError.error === 'string' ? parsedError.error : 'unknown_error',
+          error_description:
+            typeof parsedError.error_description === 'string'
+              ? parsedError.error_description
+              : (errorText || tokenRes.statusText || 'Google token exchange failed'),
+        };
+
+        logger.error('Google token exchange failed', {
+          status: safeGoogleError.status,
+          clientId: env.GOOGLE_CLIENT_ID,
+          redirectUri,
+          error: safeGoogleError.error,
+          error_description: safeGoogleError.error_description,
         });
-        throw new Error('Failed to exchange authorization code with Google');
+
+        const statusCode = tokenRes.status >= 400 && tokenRes.status < 500 ? tokenRes.status : 401;
+        throw new AppError('Google authentication failed', statusCode, safeGoogleError);
       }
 
       const tokenData = (await tokenRes.json()) as { access_token: string };
@@ -92,7 +133,15 @@ export class AuthService {
       });
 
       if (!userRes.ok) {
-        throw new Error('Failed to fetch user profile from Google');
+        logger.error('Failed to fetch user profile from Google', {
+          status: userRes.status,
+          clientId: env.GOOGLE_CLIENT_ID,
+        });
+        throw new AppError('Google authentication failed', userRes.status >= 400 && userRes.status < 500 ? userRes.status : 401, {
+          status: userRes.status,
+          error: 'userinfo_failed',
+          error_description: 'Failed to fetch user profile from Google',
+        });
       }
 
       const rawProfile = (await userRes.json()) as { sub: string; email: string; name: string; picture?: string };
@@ -103,6 +152,10 @@ export class AuthService {
         picture: rawProfile.picture,
       };
     } catch (err) {
+      if (err instanceof AppError) {
+        throw err;
+      }
+
       logger.warn('Google OAuth external call failed, checking test mode or throwing', {
         message: err instanceof Error ? err.message : String(err),
       });
@@ -117,7 +170,9 @@ export class AuthService {
         };
       } else {
         throw new AppError('Google authentication failed', 401, {
-          details: err instanceof Error ? err.message : String(err),
+          status: 401,
+          error: 'google_oauth_error',
+          error_description: err instanceof Error ? err.message : String(err),
         });
       }
     }

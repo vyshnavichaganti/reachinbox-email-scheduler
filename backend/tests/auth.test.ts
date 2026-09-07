@@ -160,6 +160,37 @@ describe('Auth API & Tenant Isolation (/api/auth)', () => {
     });
   });
 
+  describe('GET /api/auth/google/callback', () => {
+    it('returns safe error details (status, error, error_description) when Google token exchange fails', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        text: async () => JSON.stringify({
+          error: 'redirect_uri_mismatch',
+          error_description: 'The redirect URI in the request did not match',
+        }),
+      });
+      vi.stubGlobal('fetch', mockFetch);
+
+      const res = await request(app).get('/api/auth/google/callback?code=invalid_code');
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.message).toBe('Google authentication failed');
+      expect(res.body.error.details).toEqual({
+        status: 400,
+        error: 'redirect_uri_mismatch',
+        error_description: 'The redirect URI in the request did not match',
+      });
+      expect(JSON.stringify(res.body)).not.toContain('mock-google-client-secret');
+      expect(JSON.stringify(res.body)).not.toContain('invalid_code');
+      expect(JSON.stringify(res.body)).not.toContain('access_token');
+      expect(JSON.stringify(res.body)).not.toContain('refresh_token');
+
+      vi.unstubAllGlobals();
+    });
+  });
+
   describe('POST /api/auth/logout', () => {
     it('clears reachinbox_session cookie and returns success', async () => {
       const res = await request(app).post('/api/auth/logout');
