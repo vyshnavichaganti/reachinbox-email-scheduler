@@ -168,6 +168,19 @@ describe('Slack Integration API & Service (/api/slack)', () => {
       expect(res.body.data).toEqual({ connected: false });
     });
 
+    it('returns connected: false with HTTP 200 when database or credentials encounter error', async () => {
+      mockSlackConnectionFindUnique.mockRejectedValue(new Error('DB Connection Lost'));
+      const token = generateToken(user.id);
+
+      const res = await request(app)
+        .get('/api/slack/status')
+        .set('Cookie', [`reachinbox_session=${token}`]);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toEqual({ connected: false });
+    });
+
     it('returns connected: true with teamName and NEVER leaks access token', async () => {
       mockSlackConnectionFindUnique.mockResolvedValue({
         teamName: 'Acme Corp',

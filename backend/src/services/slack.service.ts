@@ -89,21 +89,30 @@ export class SlackService {
 
   /**
    * Returns connection status for user without exposing sensitive access tokens.
+   * Safely returns { connected: false } if database query fails or credentials are unconfigured.
    */
   static async getSlackStatus(userId: string): Promise<{ connected: boolean; teamName?: string }> {
-    const connection = await prisma.slackConnection.findUnique({
-      where: { userId },
-      select: { teamName: true },
-    });
+    try {
+      const connection = await prisma.slackConnection.findUnique({
+        where: { userId },
+        select: { teamName: true },
+      });
 
-    if (!connection) {
+      if (!connection) {
+        return { connected: false };
+      }
+
+      return {
+        connected: true,
+        teamName: connection.teamName,
+      };
+    } catch (err) {
+      logger.warn('Failed to query Slack connection status, defaulting to disconnected state', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return { connected: false };
     }
-
-    return {
-      connected: true,
-      teamName: connection.teamName,
-    };
   }
 
   /**

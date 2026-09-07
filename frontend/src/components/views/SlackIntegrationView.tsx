@@ -16,9 +16,9 @@ export const SlackIntegrationView: React.FC = () => {
     setError(null);
     try {
       const res = await api.getSlackStatus();
-      setSlackStatus(res.data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch Slack integration status');
+      setSlackStatus(res.data || { connected: false });
+    } catch {
+      setSlackStatus({ connected: false });
     } finally {
       setLoading(false);
     }

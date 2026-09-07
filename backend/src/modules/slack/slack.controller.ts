@@ -47,17 +47,29 @@ export class SlackController {
 
   /**
    * Returns current Slack connection status for authenticated user without exposing access token.
+   * Returns HTTP 200 with connected: false state if unconfigured or on error.
    */
-  async getStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getStatus(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
-      const userId = req.user!.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(200).json({
+          success: true,
+          data: { connected: false },
+        });
+        return;
+      }
+
       const status = await SlackService.getSlackStatus(userId);
       res.status(200).json({
         success: true,
         data: status,
       });
-    } catch (err) {
-      next(err);
+    } catch {
+      res.status(200).json({
+        success: true,
+        data: { connected: false },
+      });
     }
   }
 
