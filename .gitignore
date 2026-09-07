@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Build & Output
+dist/
+**/dist/
+build/
+**/build/
+.next/
+**/next/
+out/
+**/out/
+
+# Environment & Secrets (Ignore all .env files EXCEPT .env.example)
+.env
+.env*
+!.env.example
+!.env*.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / Tooling / OS
+.sf/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Database / Storage
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tsbuildinfo
+.eslintcache
+
