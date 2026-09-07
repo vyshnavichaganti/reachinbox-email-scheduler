@@ -67,7 +67,20 @@ export class AuthService {
 
       if (!tokenRes.ok) {
         const errorText = await tokenRes.text();
-        logger.error('Google token exchange failed', { errorText });
+        let parsedError: Record<string, any> = {};
+        try {
+          parsedError = JSON.parse(errorText);
+        } catch {
+          parsedError = { raw: errorText };
+        }
+
+        logger.error('Google token exchange failed', {
+          status: tokenRes.status,
+          statusText: tokenRes.statusText,
+          error: parsedError.error || 'unknown_error',
+          error_description: parsedError.error_description || parsedError.raw || errorText,
+          details: parsedError,
+        });
         throw new Error('Failed to exchange authorization code with Google');
       }
 
